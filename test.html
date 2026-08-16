@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>Punkte und Kanten</title>
+
+    <style>
+ .container {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+}
+
+canvas#canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+    touch-action: none;
+}
+
+#textBereich {
+    position: absolute;
+    top: 0;
+    right: 0;
+
+    width: min(900px, 50vw);
+    height: 100%;
+
+    box-sizing: border-box;
+
+    background: white;
+    border-left: 1px solid black;
+
+    z-index: 10;
+
+    display: flex;
+    flex-direction: column;
+}
+
+/* --- PDF viewer (replaces the old iframe) --- */
+
+#pdfToolbar {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    border-bottom: 1px solid black;
+    font-family: sans-serif;
+    font-size: 14px;
+    background: white;
+    user-select: none;
+}
+
+#pdfToolbar button {
+    width: 28px;
+    height: 28px;
+    border: 1px solid black;
+    background: white;
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+#pdfToolbar button:hover {
+    background: #eee;
+}
+
+#pdfToolbar #zoomResetBtn {
+    width: auto;
+    padding: 0 10px;
+}
+
+#zoomLevel {
+    min-width: 46px;
+    text-align: center;
+}
+
+#pdfViewer {
+    flex: 1 1 auto;
+    overflow: auto;
+    background: #808080;
+    touch-action: pan-x pan-y; /* allow finger-scrolling, we handle pinch ourselves */
+    -webkit-overflow-scrolling: touch;
+}
+
+#pdfViewer:focus {
+    outline: none;
+}
+
+#pdfViewer .pdfPage {
+    display: block;
+    margin: 16px auto;
+    background: white;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+}
+
+#pdfViewer .pdfMessage {
+    padding: 20px;
+    font-family: sans-serif;
+    color: #333;
+}
+    </style>
+</head>
+
+<body>
+
+<div class="container">
+
+
+
+    <canvas id="canvas"></canvas>
+    
+
+
+    <div id="textBereich">
+        <div id="pdfToolbar">
+            <button id="zoomOutBtn" title="Verkleinern (Strg -)" aria-label="Verkleinern">−</button>
+            <span id="zoomLevel">120%</span>
+            <button id="zoomInBtn" title="Vergrößern (Strg +)" aria-label="Vergrößern">+</button>
+            <button id="zoomResetBtn" title="Zurücksetzen (Strg 0)" aria-label="Zoom zurücksetzen">Reset</button>
+        </div>
+        <div id="pdfViewer" tabindex="0"></div>
+    </div>
+    
+</div>
+
+<script>
+
+
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    const rand = 20;
+
+    const min_x = rand;
+    const max_x = canvas.width - rand-900;
+
+    const min_y = rand;
+    const max_y = canvas.height - rand;
+
+
+      let gezogenerPunkt = null;
+
+
+        const anzahlpunkte= 255;
+        let erschienenepunkte=0;
+        
+
+        let letzteAddition = performance.now();
+
+        const wartezeit = 100; 
+
+        let punkte =[];
+
+        let kanten= [
+
+        ];
+
+
+        const ebenen = 8;
+const anzahlBaumPunkte = 2 ** ebenen - 1;
+let zuerscheiendepunkte= 2 ** 3 - 1;
+
+for (let i = 0; i < anzahlBaumPunkte; i++) {
+
+    const links = 2 * i + 1;
+    const rechts = 2 * i + 2;
+
+    if (links < anzahlBaumPunkte) {
+        kanten.push([i, links]);
+    }
+
+    if (rechts < anzahlBaumPunkte) {
+        kanten.push([i, rechts]);
+    }
+}
+ 
+
+
+       
+
+        
+
+        const kompliment = [];
+
+        for (let i = 0; i < anzahlpunkte; i++) {
+            for (let j = i+1; j <= anzahlpunkte; j++) {
+            
+                kompliment.push([i, j]);
+            
+            
+        }
+            
+        }
+
+
+    
+    function zeichnen() {
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        const drag1 = 0.000001;
+        const jetzt = performance.now();
+
+        if (
+            erschienenepunkte < zuerscheiendepunkte &&
+            jetzt - letzteAddition >= wartezeit
+        ) {
+            const a = Math.floor(Math.random() * 401) + 300;
+            const b = Math.floor(Math.random() * 401) + 300;
+
+            punkte.push({
+                x: a,
+                y: b
+            });
+
+            erschienenepunkte++;
+
+            letzteAddition = jetzt;
+        }
+
+        if (
+            erschienenepunkte > zuerscheiendepunkte){
+                punkte.splice(zuerscheiendepunkte)
+                erschienenepunkte= zuerscheiendepunkte;
+            }
+
+
+
+
+    
+        for (const komplet of kompliment) {
+
+            if(erschienenepunkte>komplet[1]){
+                const k1=punkte[komplet[0]];
+            const k2=punkte[komplet[1]];
+
+            const dist_x = k1.x-k2.x;
+            const dist_y = k1.y-k2.y;
+
+            const dist = Math.hypot(dist_x,dist_y);
+
+            const kraft = 1/(dist*dist);
+            
+            
+            
+            if(gezogenerPunkt!=k1&&dist<300){
+                k1.x = Math.max(
+                    Math.min(k1.x + dist_x * kraft, max_x),
+                    min_x
+                );
+
+                k1.y = Math.max(
+                    Math.min(k1.y + dist_y * kraft, max_y),
+                    min_y
+                );
+            }
+            
+            if(gezogenerPunkt!=k2&&dist<200){
+            k2.x = Math.max(
+                    Math.min(k2.x - dist_x * kraft, max_x),
+                    min_x
+                );
+
+                k2.y = Math.max(
+                    Math.min(k2.y - dist_y * kraft, max_y),
+                    min_y
+                );
+            }
+
+
+            }
+
+
+        }
+
+        for (const kante of kanten) {
+            if(erschienenepunkte>kante[1]){
+            const punkt1 = punkte[kante[0]];
+            const punkt2 = punkte[kante[1]];
+
+            let displacment_x = punkte[kante[0]].x-punkte[kante[1]].x
+            let displacment_y = punkte[kante[0]].y-punkte[kante[1]].y
+
+            let displacment= 30-Math.sqrt(Math.pow(displacment_x,2)+Math.pow(displacment_y,2))
+
+            displacment= Math.sign(displacment)*displacment*displacment;
+
+            if(gezogenerPunkt!=punkt1){
+            punkt1.x+=displacment_x*(displacment)*drag1;
+            punkt1.y+=displacment_y*(displacment)*drag1;
+            }
+
+            if(gezogenerPunkt!=punkt2){
+            punkt2.x-=displacment_x*(displacment)*drag1;
+            punkt2.y-=displacment_y*(displacment)*drag1;
+            }
+
+        
+
+            ctx.beginPath();
+
+            ctx.moveTo(punkt1.x, punkt1.y);
+            ctx.lineTo(punkt2.x, punkt2.y);
+
+            ctx.strokeStyle = "black";
+            ctx.stroke();
+        }
+    }
+
+
+      
+        for (const punkt of punkte) {
+
+            ctx.beginPath();
+
+            ctx.arc(
+                punkt.x,
+                punkt.y,
+                5,
+                0,
+                Math.PI * 2
+            );
+            if(punkt==seletc1||punkt==seletc2){
+                ctx.fillStyle = "red";
+            }else{
+              ctx.fillStyle = "black";  
+            }
+            
+            ctx.fill();
+        }
+
+
+
+        requestAnimationFrame(zeichnen);
+    }
+
+    let seletc1=null;
+    let seletc2=null;
+    let selecting = 0; // 0 no pints jet 1 2 
+
+
+    function deletion(){
+        if (selecting !== 3) {
+            return;
+        }
+
+        let i_ = punkte.indexOf(seletc1);
+        let j_ = punkte.indexOf(seletc2);
+
+        let i = Math.min(i_, j_);
+        let j = Math.max(i_, j_);
+
+        const index = kanten.findIndex(
+            k => k[0] === i && k[1] === j
+        );
+
+        if (index !== -1) {
+            kanten.splice(index, 1);
+        }
+
+        selecting = 0;
+        seletc1=null;
+            seletc2=null;
+
+
+
+
+
+
+
+
+    }
+
+        function addition() {
+            if (selecting !== 3) {
+                return;
+            }
+
+            let i_ = punkte.indexOf(seletc1);
+            let j_ = punkte.indexOf(seletc2);
+
+            let i = Math.min(i_, j_);
+            let j = Math.max(i_, j_);
+
+            kanten.push([i, j]);
+
+            selecting = 0;
+            seletc1 = null;
+            seletc2 = null;
+        }
+
+
+
+    
+    zeichnen();
+
+
+    canvas.addEventListener("mousedown", function(event) {
+
+        const x = event.clientX;
+        const y = event.clientY;
+
+
+        for (const punkt of punkte) {
+
+            
+            const abstand = Math.hypot(
+                punkt.x - x,
+                punkt.y - y
+            );
+
+
+            
+            if (abstand < 30) {
+
+                if (selecting > 0) {
+
+                    if (selecting === 1) {
+                        seletc1 = punkt;
+                        selecting = 2;
+                    }
+                    else if (selecting === 2 && seletc1 !== punkt) {
+                        seletc2 = punkt;
+                        selecting = 3;
+                    }
+
+                }
+                gezogenerPunkt = punkt;
+                break;
+            }
+        }
+    });
+
+
+    canvas.addEventListener("mousemove", function(event) {
+
+        // Wenn kein Punkt gezogen wird
+        if (gezogenerPunkt === null) {
+            return;
+        }
+
+
+       gezogenerPunkt.x = Math.max(
+            Math.min(event.clientX, max_x),
+            min_x
+        );
+
+        gezogenerPunkt.y = Math.max(
+            Math.min(event.clientY, max_y),
+            min_y
+        );
+
+
+        // Alles neu zeichnen
+        zeichnen();
+    });
+
+
+    
+
+    canvas.addEventListener("mouseup", function() {
+
+        gezogenerPunkt = null;
+    });
+
+    document.addEventListener("keydown", function(event) {
+
+    if (event.key === "ArrowLeft") {
+         window.location.href = "main.html";
+    }
+
+    if (event.key === " ") {
+         window.location.href = "main.html";
+    }
+
+    if (event.key === "Backspace") {
+         deletion();
+    }
+
+    if (event.key === "Shift") {
+         addition();
+    }
+
+    if (event.key === "Enter") {
+         if(selecting==0){
+            selecting=1;
+         }
+         else{
+            selecting=0;
+            seletc1=null;
+            seletc2=null;
+         }
+    }
+    if (event.key === "Alt") {
+         window.location.href = "baume.html";
+    }
+
+   
+
+    if (event.key === "o") {
+         punkte.splice(0);
+         erschienenepunkte=0;
+
+    }
+
+    if (event.key >= "1" && event.key <= "8") {
+        const zahl = Number(event.key);
+
+        zuerscheiendepunkte= 2 ** zahl - 1;;
+
+
+    
+    }
+
+    });
+
+
+
+</script>
+
+<script type="module">
+
+    // --- PDF.js: rendert Baum.pdf auf Canvas-Elemente statt in ein iframe ---
+    // Bibliothek per CDN (ES-Module-Build von pdf.js, kein npm/bundler nötig)
+
+    import * as pdfjsLib from "https://cdn.jsdelivr.net/npm/pdfjs-dist@6.2.108/build/pdf.mjs";
+
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+        "https://cdn.jsdelivr.net/npm/pdfjs-dist@6.2.108/build/pdf.worker.min.mjs";
+
+    const PDF_URL = "Baum.pdf";
+    const PDFJS_CDN_BASE = "https://cdn.jsdelivr.net/npm/pdfjs-dist@6.2.108/";
+
+    const pdfViewer = document.getElementById("pdfViewer");
+    const zoomLevelLabel = document.getElementById("zoomLevel");
+    const zoomInBtn = document.getElementById("zoomInBtn");
+    const zoomOutBtn = document.getElementById("zoomOutBtn");
+    const zoomResetBtn = document.getElementById("zoomResetBtn");
+
+    const MIN_SCALE = 0.4;
+    const MAX_SCALE = 5;
+    const START_SCALE = 1.2;
+
+    let pdfDoc = null;
+    let scale = START_SCALE;
+    let renderGeneration = 0;
+    let renderTimer = null;
+    let pendingAnchor = null; // hält die Bildlaufposition beim Zoomen stabil
+
+    function showMessage(text) {
+        pdfViewer.innerHTML = `<div class="pdfMessage">${text}</div>`;
+    }
+
+    async function loadPdf() {
+        showMessage("PDF wird geladen …");
+        try {
+            const loadingTask = pdfjsLib.getDocument({
+                url: PDF_URL,
+                cMapUrl: PDFJS_CDN_BASE + "cmaps/",
+                cMapPacked: true,
+                standardFontDataUrl: PDFJS_CDN_BASE + "standard_fonts/",
+            });
+            pdfDoc = await loadingTask.promise;
+            await renderAllPages();
+        } catch (err) {
+            console.error(err);
+            showMessage(
+                "PDF konnte nicht geladen werden. Läuft die Seite über einen lokalen " +
+                "Server (http/https) und nicht direkt als file://?"
+            );
+        }
+    }
+
+    async function renderAllPages() {
+        if (!pdfDoc) return;
+
+        // Generation-Zähler: falls während des Renderns erneut gezoomt wird,
+        // brechen ältere, noch laufende Render-Durchläufe sich selbst ab.
+        const myGeneration = ++renderGeneration;
+        const dpr = window.devicePixelRatio || 1;
+        const fragment = document.createDocumentFragment();
+
+        for (let num = 1; num <= pdfDoc.numPages; num++) {
+            if (myGeneration !== renderGeneration) return;
+
+            const page = await pdfDoc.getPage(num);
+            const viewport = page.getViewport({ scale });
+
+            const pageCanvas = document.createElement("canvas");
+            pageCanvas.className = "pdfPage";
+            const context = pageCanvas.getContext("2d");
+
+            // Intern höher aufgelöst rendern (devicePixelRatio) für scharfe Darstellung,
+            // per CSS aber auf die eigentliche Zoomgröße skalieren.
+            pageCanvas.width = Math.floor(viewport.width * dpr);
+            pageCanvas.height = Math.floor(viewport.height * dpr);
+            pageCanvas.style.width = viewport.width + "px";
+            pageCanvas.style.height = viewport.height + "px";
+
+            fragment.appendChild(pageCanvas);
+
+            await page.render({
+                canvasContext: context,
+                viewport,
+                transform: dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : undefined,
+            }).promise;
+        }
+
+        if (myGeneration !== renderGeneration) return;
+
+        pdfViewer.innerHTML = "";
+        pdfViewer.appendChild(fragment);
+
+        // Bildlaufposition wiederherstellen, damit der Zoom um den Cursor/die
+        // Fingermitte herum stattfindet statt immer zur Ecke zu springen.
+        if (pendingAnchor) {
+            const { fracX, fracY, anchorX, anchorY } = pendingAnchor;
+            pdfViewer.scrollLeft = fracX * pdfViewer.scrollWidth - anchorX;
+            pdfViewer.scrollTop = fracY * pdfViewer.scrollHeight - anchorY;
+            pendingAnchor = null;
+        }
+    }
+
+    function scheduleRender() {
+        clearTimeout(renderTimer);
+        renderTimer = setTimeout(renderAllPages, 120);
+    }
+
+    function setZoom(newScale, anchorClientX, anchorClientY) {
+        newScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, newScale));
+        if (newScale === scale) return;
+
+        const rect = pdfViewer.getBoundingClientRect();
+        const anchorX = anchorClientX != null ? anchorClientX - rect.left : rect.width / 2;
+        const anchorY = anchorClientY != null ? anchorClientY - rect.top : 0;
+
+        const fracX = (pdfViewer.scrollLeft + anchorX) / (pdfViewer.scrollWidth || 1);
+        const fracY = (pdfViewer.scrollTop + anchorY) / (pdfViewer.scrollHeight || 1);
+
+        scale = newScale;
+        zoomLevelLabel.textContent = Math.round(scale * 100) + "%";
+
+        pendingAnchor = { fracX, fracY, anchorX, anchorY };
+        scheduleRender();
+    }
+
+    // --- Buttons ---
+    zoomInBtn.addEventListener("click", () => setZoom(scale * 1.25));
+    zoomOutBtn.addEventListener("click", () => setZoom(scale / 1.25));
+    zoomResetBtn.addEventListener("click", () => setZoom(START_SCALE));
+
+    // --- Strg/Cmd + Mausrad zoomt, normales Mausrad scrollt wie gewohnt ---
+    pdfViewer.addEventListener(
+        "wheel",
+        (event) => {
+            if (!event.ctrlKey && !event.metaKey) return;
+            event.preventDefault();
+            const factor = event.deltaY < 0 ? 1.1 : 1 / 1.1;
+            setZoom(scale * factor, event.clientX, event.clientY);
+        },
+        { passive: false }
+    );
+
+    // --- Strg/Cmd +/-/0, nur wenn der PDF-Bereich fokussiert ist ---
+    pdfViewer.addEventListener("keydown", (event) => {
+        if (!(event.ctrlKey || event.metaKey)) return;
+        if (event.key === "+" || event.key === "=") {
+            event.preventDefault();
+            setZoom(scale * 1.25);
+        } else if (event.key === "-") {
+            event.preventDefault();
+            setZoom(scale / 1.25);
+        } else if (event.key === "0") {
+            event.preventDefault();
+            setZoom(START_SCALE);
+        }
+    });
+
+    // --- Pinch-to-Zoom (Touch) ---
+    let pinchStartDist = null;
+    let pinchStartScale = null;
+
+    function touchDistance(touches) {
+        const dx = touches[0].clientX - touches[1].clientX;
+        const dy = touches[0].clientY - touches[1].clientY;
+        return Math.hypot(dx, dy);
+    }
+
+    function touchCenter(touches) {
+        return {
+            x: (touches[0].clientX + touches[1].clientX) / 2,
+            y: (touches[0].clientY + touches[1].clientY) / 2,
+        };
+    }
+
+    pdfViewer.addEventListener(
+        "touchstart",
+        (event) => {
+            if (event.touches.length === 2) {
+                pinchStartDist = touchDistance(event.touches);
+                pinchStartScale = scale;
+            }
+        },
+        { passive: true }
+    );
+
+    pdfViewer.addEventListener(
+        "touchmove",
+        (event) => {
+            if (event.touches.length === 2 && pinchStartDist) {
+                event.preventDefault();
+                const dist = touchDistance(event.touches);
+                const center = touchCenter(event.touches);
+                setZoom((pinchStartScale * dist) / pinchStartDist, center.x, center.y);
+            }
+        },
+        { passive: false }
+    );
+
+    pdfViewer.addEventListener("touchend", (event) => {
+        if (event.touches.length < 2) pinchStartDist = null;
+    });
+
+    loadPdf();
+
+</script>
+
+</body>
+</html>
