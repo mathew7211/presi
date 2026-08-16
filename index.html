@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>Punkte und Kanten</title>
+
+    <style>
+        .container {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+}
+
+canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+#svgOverlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+
+    pointer-events: none;
+}
+    </style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <canvas id="canvas"></canvas>
+
+    <img src="design.svg" id="svgOverlay">
+
+</div>
+
+<script>
+
+
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    const rand = 20;
+
+    const min_x = rand;
+    const max_x = canvas.width - rand;
+
+    const min_y = rand;
+    const max_y = canvas.height - rand;
+
+
+      let gezogenerPunkt = null;
+
+
+        const anzahlpunkte= 127;
+        let erschienenepunkte=0;
+
+        let letzteAddition = performance.now();
+
+        const wartezeit = 200; 
+
+        let punkte =[];
+
+
+        
+       const kanten = [];
+
+const ebenen = 7;
+const anzahlBaumPunkte = 2 ** ebenen - 1;
+
+for (let i = 0; i < anzahlBaumPunkte; i++) {
+
+    const links = 2 * i + 1;
+    const rechts = 2 * i + 2;
+
+    if (links < anzahlBaumPunkte) {
+        kanten.push([i, links]);
+    }
+
+    if (rechts < anzahlBaumPunkte) {
+        kanten.push([i, rechts]);
+    }
+}
+
+        const kompliment = [];
+
+        for (let i = 0; i < anzahlpunkte; i++) {
+            for (let j = i+1; j <= anzahlpunkte; j++) {
+            
+                kompliment.push([i, j]);
+            
+            
+        }
+            
+        }
+
+
+    
+    function zeichnen() {
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        const drag1 = 0.000001;
+        const jetzt = performance.now();
+
+        if (
+            erschienenepunkte < anzahlpunkte &&
+            jetzt - letzteAddition >= wartezeit
+        ) {
+            const a = Math.floor(Math.random() * 401) + 300;
+            const b = Math.floor(Math.random() * 401) + 300;
+
+            punkte.push({
+                x: a,
+                y: b
+            });
+
+            erschienenepunkte++;
+
+            letzteAddition = jetzt;
+        }
+
+    
+        for (const komplet of kompliment) {
+
+            if(erschienenepunkte>komplet[1]){
+                const k1=punkte[komplet[0]];
+            const k2=punkte[komplet[1]];
+
+            const dist_x = k1.x-k2.x;
+            const dist_y = k1.y-k2.y;
+
+            const dist = Math.hypot(dist_x,dist_y);
+
+            const kraft = 1/(dist*dist);
+            
+            
+            
+            if(gezogenerPunkt!=k1&&dist<300){
+                k1.x = Math.max(
+                    Math.min(k1.x + dist_x * kraft, max_x),
+                    min_x
+                );
+
+                k1.y = Math.max(
+                    Math.min(k1.y + dist_y * kraft, max_y),
+                    min_y
+                );
+            }
+            
+            if(gezogenerPunkt!=k2&&dist<300){
+            k2.x = Math.max(
+                    Math.min(k2.x - dist_x * kraft, max_x),
+                    min_x
+                );
+
+                k2.y = Math.max(
+                    Math.min(k2.y - dist_y * kraft, max_y),
+                    min_y
+                );
+            }
+
+            }
+
+
+        }
+
+        for (const kante of kanten) {
+            if(erschienenepunkte>kante[1]){
+            const punkt1 = punkte[kante[0]];
+            const punkt2 = punkte[kante[1]];
+
+            let displacment_x = punkte[kante[0]].x-punkte[kante[1]].x
+            let displacment_y = punkte[kante[0]].y-punkte[kante[1]].y
+
+            let displacment= 10-Math.sqrt(Math.pow(displacment_x,2)+Math.pow(displacment_y,2))
+
+            displacment= Math.sign(displacment)*displacment*displacment;
+
+            if(gezogenerPunkt!=punkt1){
+            punkt1.x+=displacment_x*(displacment)*drag1;
+            punkt1.y+=displacment_y*(displacment)*drag1;
+            }
+
+            if(gezogenerPunkt!=punkt2){
+            punkt2.x-=displacment_x*(displacment)*drag1;
+            punkt2.y-=displacment_y*(displacment)*drag1;
+            }
+
+        
+
+            ctx.beginPath();
+
+            ctx.moveTo(punkt1.x, punkt1.y);
+            ctx.lineTo(punkt2.x, punkt2.y);
+
+            ctx.strokeStyle = "black";
+            ctx.stroke();
+        }
+    }
+
+
+      
+        for (const punkt of punkte) {
+
+            ctx.beginPath();
+
+            ctx.arc(
+                punkt.x,
+                punkt.y,
+                5,
+                0,
+                Math.PI * 2
+            );
+            if(punkt==seletc1||punkt==seletc2){
+                ctx.fillStyle = "red";
+            }else{
+              ctx.fillStyle = "black";  
+            }
+            
+            ctx.fill();
+        }
+
+
+
+        requestAnimationFrame(zeichnen);
+    }
+
+    let seletc1=null;
+    let seletc2=null;
+    let selecting = 0; // 0 no pints jet 1 2 
+
+
+    function deletion(){
+        if (selecting !== 3) {
+            return;
+        }
+
+        let i_ = punkte.indexOf(seletc1);
+        let j_ = punkte.indexOf(seletc2);
+
+        let i = Math.min(i_, j_);
+        let j = Math.max(i_, j_);
+
+        const index = kanten.findIndex(
+            k => k[0] === i && k[1] === j
+        );
+
+        if (index !== -1) {
+            kanten.splice(index, 1);
+        }
+
+        selecting = 0;
+        seletc1=null;
+            seletc2=null;
+
+
+
+
+
+
+
+
+    }
+
+        function addition() {
+            if (selecting !== 3) {
+                return;
+            }
+
+            let i_ = punkte.indexOf(seletc1);
+            let j_ = punkte.indexOf(seletc2);
+
+            let i = Math.min(i_, j_);
+            let j = Math.max(i_, j_);
+
+            kanten.push([i, j]);
+
+            selecting = 0;
+            seletc1 = null;
+            seletc2 = null;
+        }
+
+
+
+    
+    zeichnen();
+
+
+    canvas.addEventListener("mousedown", function(event) {
+
+        const x = event.clientX;
+        const y = event.clientY;
+
+
+        for (const punkt of punkte) {
+
+            
+            const abstand = Math.hypot(
+                punkt.x - x,
+                punkt.y - y
+            );
+
+
+            
+            if (abstand < 30) {
+
+                if (selecting > 0) {
+
+                    if (selecting === 1) {
+                        seletc1 = punkt;
+                        selecting = 2;
+                    }
+                    else if (selecting === 2 && seletc1 !== punkt) {
+                        seletc2 = punkt;
+                        selecting = 3;
+                    }
+
+                }
+                gezogenerPunkt = punkt;
+                break;
+            }
+        }
+    });
+
+
+    canvas.addEventListener("mousemove", function(event) {
+
+        // Wenn kein Punkt gezogen wird
+        if (gezogenerPunkt === null) {
+            return;
+        }
+
+
+        // Punkt an die Mausposition setzen
+        gezogenerPunkt.x = Math.max(
+            Math.min(event.clientX, max_x),
+            min_x
+        );
+
+        gezogenerPunkt.y = Math.max(
+            Math.min(event.clientY, max_y),
+            min_y
+        );
+
+
+        // Alles neu zeichnen
+        zeichnen();
+    });
+
+
+    
+
+    canvas.addEventListener("mouseup", function() {
+
+        gezogenerPunkt = null;
+    });
+
+    document.addEventListener("keydown", function(event) {
+
+    if (event.key === "ArrowLeft") {
+         window.location.href = "main.html";
+    }
+
+    if (event.key === " ") {
+         window.location.href = "graph.html";
+    }
+    if (event.key === "Alt") {
+         window.location.href = "main.html";
+    }
+
+    if (event.key === "Backspace") {
+         deletion();
+    }
+
+    if (event.key === "Shift") {
+         addition();
+    }
+
+    if (event.key === "o") {
+         punkte.splice(0);
+         erschienenepunkte=0;
+
+    }
+
+    if (event.key === "Enter") {
+         if(selecting==0){
+            selecting=1;
+         }
+         else{
+            selecting=0;
+            seletc1=null;
+            seletc2=null;
+         }
+    }
+
+    });
+
+
+
+</script>
+
+</body>
+</html>
