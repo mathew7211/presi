@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <title>Domino Physiksimulation</title>
+
+    <style>
+html, body {
+    margin: 0;
+    padding: 0;
+}
+
+.container {
+    display: flex;
+    flex-direction: row;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+}
+
+#canvasBereich {
+    position: relative;
+    flex: 1 1 50%;
+    min-width: 0;
+    min-height: 0;
+}
+
+canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+#svgOverlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+
+    pointer-events: none;
+}
+
+#textBereich {
+    flex: 1 1 50%;
+    min-width: 0;
+    min-height: 0;
+
+    box-sizing: border-box;
+    padding: 20px;
+
+    background: rgba(255, 255, 255, 0);
+    border-left: 1px solid black;
+}
+
+#textBereich iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+    display: block;
+}
+
+#text {
+    width: 100%;
+    height: 100%;
+
+    box-sizing: border-box;
+
+    resize: none;
+    border: none;
+    outline: none;
+
+    font-size: 18px;
+    font-family: Arial, sans-serif;
+}
+
+/* Mobile / schmale Bildschirme: untereinander statt nebeneinander */
+@media (max-width: 768px), (orientation: portrait) {
+    .container {
+        flex-direction: column;
+    }
+
+    #canvasBereich {
+        flex: 1 1 55%;
+        width: 100%;
+    }
+
+    #textBereich {
+        flex: 1 1 45%;
+        width: 100%;
+        border-left: none;
+        border-top: 1px solid black;
+    }
+}
+    </style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <div id="canvasBereich">
+        <canvas id="canvas"></canvas>
+        <div id="svgOverlay"></div>
+    </div>
+
+    <div id="textBereich">
+        <iframe
+            src="induktion.html"
+            width="100%"
+            height="100%"
+            style="border: none;">
+        </iframe>
+    </div>
+
+</div>
+
+<script>
+
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+
+    const rand = 20;
+
+    let min_x, max_x, min_y, max_y, boden_y;
+
+    // ---------- Domino Physiksimulation ----------
+
+    const domino_breite = 16;
+    const domino_hoehe = 90;
+    const domino_abstand = 60;
+
+    const schwerkraft = 9.0;      // Stärke des "Kipp"-Drehmoments
+    const daempfung = 0.995;      // Luft-/Reibungsdämpfung
+    const maxWinkel = Math.PI / 2 * 0.98;
+
+    let dominos = [];
+
+    function dominosAufbauen() {
+
+        dominos = [];
+
+        const anzahl = Math.max(
+            3,
+            Math.floor((max_x - min_x - 60) / domino_abstand)
+        );
+
+        for (let i = 0; i < anzahl; i++) {
+
+            dominos.push({
+                x: min_x + 60 + i * domino_abstand,
+                w: domino_breite,
+                h: domino_hoehe,
+                winkel: 0,          // 0 = aufrecht
+                winkelGeschw: 0,
+                faellt: false,
+                liegt: false
+            });
+        }
+    }
+
+    function canvasGroesseAktualisieren() {
+        const rect = canvas.getBoundingClientRect();
+        canvas.width = rect.width;
+        canvas.height = rect.height;
+
+        min_x = rand;
+        max_x = canvas.width - rand;
+
+        min_y = rand;
+        max_y = canvas.height - rand;
+
+        boden_y = max_y - 40;
+
+        dominosAufbauen();
+    }
+
+    canvasGroesseAktualisieren();
+    window.addEventListener("resize", canvasGroesseAktualisieren);
+    window.addEventListener("orientationchange", canvasGroesseAktualisieren);
+
+
+    function stossenAn(index, anfangsSchub) {
+
+        const d = dominos[index];
+
+        if (!d || d.liegt || d.faellt) {
+            return;
+        }
+
+        d.faellt = true;
+        d.winkel = 0.02;
+        d.winkelGeschw = anfangsSchub;
+    }
+
+    function physikSchritt(dt) {
+
+        for (let i = 0; i < dominos.length; i++) {
+
+            const d = dominos[i];
+
+            if (d.faellt && !d.liegt) {
+
+                const drehmoment = schwerkraft * Math.sin(d.winkel);
+
+                d.winkelGeschw += drehmoment * dt;
+                d.winkelGeschw *= daempfung;
+                d.winkel += d.winkelGeschw * dt;
+
+                if (d.winkel >= maxWinkel) {
+                    d.winkel = maxWinkel;
+                    d.winkelGeschw = 0;
+                    d.liegt = true;
+                }
+            }
+
+            // Kollision mit dem nächsten Stein prüfen
+            const naechster = dominos[i + 1];
+
+            if (naechster && !naechster.faellt) {
+
+                const spitzeX = d.x + Math.sin(d.winkel) * d.h;
+                const zielX = naechster.x - naechster.w / 2;
+
+                if (spitzeX >= zielX && d.winkel > 0.15) {
+                    stossenAn(i + 1, 0.6);
+                }
+            }
+        }
+    }
+
+    function dominoZeichnen(d) {
+
+        ctx.save();
+        ctx.translate(d.x, boden_y);
+        ctx.rotate(d.winkel);
+
+        ;
+
+        ctx.fillStyle = "black";
+        ctx.fillRect(-d.w / 2, -d.h, d.w, d.h);
+
+        ctx.strokeStyle = "#000";
+        ctx.lineWidth = 1;
+        ctx.strokeRect(-d.w / 2, -d.h, d.w, d.h);
+
+        ctx.restore();
+    }
+
+    let letzteZeit = performance.now();
+
+    function zeichnen() {
+
+        const jetzt = performance.now();
+        let dt = (jetzt - letzteZeit) / 1000;
+        letzteZeit = jetzt;
+
+        dt = Math.min(dt, 0.033); // Simulation stabil halten
+
+        physikSchritt(dt);
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Boden
+        ctx.strokeStyle = "black";
+        ctx.beginPath();
+        ctx.moveTo(min_x, boden_y);
+        ctx.lineTo(max_x, boden_y);
+        ctx.stroke();
+
+        for (const d of dominos) {
+            dominoZeichnen(d);
+        }
+
+        requestAnimationFrame(zeichnen);
+    }
+
+    zeichnen();
+
+
+    // Hilfsfunktion: Position relativ zum Canvas berechnen
+    function canvasPosition(clientX, clientY) {
+        const rect = canvas.getBoundingClientRect();
+        return {
+            x: clientX - rect.left,
+            y: clientY - rect.top
+        };
+    }
+
+    function steinAnstossenBeiPosition(x, y) {
+
+        // Prüfen, ob ein Stein angeklickt wurde -> anstoßen
+        for (let i = 0; i < dominos.length; i++) {
+
+            const d = dominos[i];
+
+            const nahX = Math.abs(x - d.x) < d.w * 2;
+            const nahY = y > boden_y - d.h - 10 && y < boden_y + 10;
+
+            if (nahX && nahY) {
+                stossenAn(i, 0.5);
+                return;
+            }
+        }
+    }
+
+
+    // --- Maus-Event ---
+
+    canvas.addEventListener("mousedown", function (event) {
+        const pos = canvasPosition(event.clientX, event.clientY);
+        steinAnstossenBeiPosition(pos.x, pos.y);
+    });
+
+
+    // --- Touch-Event (für mobile Geräte) ---
+
+    canvas.addEventListener("touchstart", function (event) {
+        event.preventDefault();
+        const touch = event.touches[0];
+        const pos = canvasPosition(touch.clientX, touch.clientY);
+        steinAnstossenBeiPosition(pos.x, pos.y);
+    }, { passive: false });
+
+
+    document.addEventListener("keydown", function (event) {
+
+        if (event.key === "ArrowLeft") {
+            window.location.href = "index_m.html";
+        }
+
+        if (event.key === " ") {
+            window.location.href = "beweis1_m.html";
+        }
+
+        if (event.key === "Alt") {
+            window.location.href = "induktio_m.html";
+        }
+
+        if (event.key === "r" || event.key === "R") {
+            dominosAufbauen();
+        }
+
+    });
+
+</script>
+
+</body>
+</html>
