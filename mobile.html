@@ -57,11 +57,12 @@ canvas {
 
 
     <div id="textBereich">
-       <iframe 
-    src="Baum.pdf#toolbar=0&navpanes=0&scrollbar=0&zoom=150"
-    width="100%"
-    height="100%"
-    style="border: none;">
+       <iframe
+  src="https://docs.google.com/gview?url=https://mathew7211.github.io/presi/Baum.pdf&embedded=true"
+  width="100%"
+  height="600px"
+  frameborder="0"
+></iframe>
 </iframe>
     </div>
     
@@ -77,8 +78,10 @@ canvas {
 
     const rand = 20;
 
+    const bodyWidth = document.body.scrollWidth;
+
     const min_x = rand;
-    const max_x = canvas.width - rand-900;
+    const max_x = canvas.width - rand-bodyWidth/2;
 
     const min_y = rand;
     const max_y = canvas.height - rand;
